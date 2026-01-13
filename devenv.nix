@@ -8,14 +8,18 @@
 
 {
   # https://devenv.sh/packages/
-  packages = with pkgs; [ protobuf ];
+  packages = with pkgs; [
+    protobuf
+    protoc-gen-go
+    just
+  ];
 
   # https://devenv.sh/languages/
   languages.nix.enable = true;
 
   # https://devenv.sh/basics/
   enterShell = ''
-    protobuf --version
+    protoc --version
   '';
 
   # https://devenv.sh/git-hooks/
