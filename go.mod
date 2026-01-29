@@ -3,8 +3,10 @@ module github.com/Devin-Yeung/proglog
 go 1.25.1
 
 require (
+	github.com/docker/go-units v0.5.0
 	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.11.1
+	github.com/tysonmote/gommap v0.0.3
 	google.golang.org/protobuf v1.36.11
 )
 
