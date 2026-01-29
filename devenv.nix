@@ -26,6 +26,12 @@
   git-hooks = {
     hooks = {
       nixfmt.enable = true;
+      yamlfmt = {
+        enable = true;
+        settings = {
+          lint-only = false;
+        };
+      };
     };
     package = pkgs.prek;
   };
