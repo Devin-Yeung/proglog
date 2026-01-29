@@ -11,6 +11,7 @@
   packages = with pkgs; [
     protobuf
     protoc-gen-go
+    gotestsum
     just
   ];
 
@@ -25,6 +26,13 @@
   # https://devenv.sh/git-hooks/
   git-hooks = {
     hooks = {
+      unit-tests = {
+        enable = true;
+        name = "go tests";
+        entry = "gotestsum --format testname";
+        files = "\\.go$";
+        pass_filenames = false;
+      };
       nixfmt.enable = true;
       yamlfmt = {
         enable = true;

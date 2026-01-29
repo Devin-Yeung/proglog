@@ -1,3 +1,6 @@
+test:
+  gotestsum --format=testname
+
 compile:
   protoc api/v1/*.proto \
     --go_out=. \
