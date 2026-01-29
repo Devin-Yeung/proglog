@@ -1,6 +1,7 @@
 package log
 
 import (
+	"io"
 	"os"
 
 	"github.com/docker/go-units"
@@ -8,9 +9,9 @@ import (
 )
 
 var (
-	offsetWidth   = 4
-	positionWidth = 8
-	entryWidth    = offsetWidth + positionWidth
+	offsetWidth   uint64 = 4
+	positionWidth uint64 = 8
+	entryWidth           = offsetWidth + positionWidth
 )
 
 // Offset: the offset of current record relative to the segment's base offset
@@ -76,5 +77,45 @@ func (i *index) Close() error {
 	if err := i.file.Truncate(int64(i.size)); err != nil {
 		return err
 	}
+	return nil
+}
+
+// Read takes an index and returns the corresponding de-surged offset and absolute position in the store file.
+// If idx is -1, it reads the last entry in the index and returns its actually offset.
+// The type of index is int64 on purpose to allow -1 as a special value and cover the full range of uint32.
+func (i *index) Read(idx int64) (uint32, uint64, error) {
+	if i.size == 0 {
+		return 0, 0, io.EOF
+	}
+
+	// if idx is -1, read the last entry
+	if idx == -1 {
+		idx = int64((i.size / entryWidth) - 1)
+	}
+
+	idxLocation := uint64(idx) * entryWidth
+	if i.size < idxLocation+entryWidth {
+		return 0, 0, io.EOF
+	}
+
+	offset := byteOrder.Uint32(i.mmap[idxLocation : idxLocation+offsetWidth])
+	position := byteOrder.Uint64(i.mmap[idxLocation+offsetWidth : idxLocation+entryWidth])
+	return offset, position, nil
+}
+
+// Write appends a new offset and position entry to the index.
+func (i *index) Write(offset uint32, pos uint64) error {
+	// check if there is enough space to write a new entry
+	if uint64(len(i.mmap)) < i.size+entryWidth {
+		return io.EOF
+	}
+
+	// encode offset
+	byteOrder.PutUint32(i.mmap[i.size:i.size+offsetWidth], offset)
+	// encode position
+	byteOrder.PutUint64(i.mmap[i.size+offsetWidth:i.size+entryWidth], pos)
+
+	i.size += entryWidth
+
 	return nil
 }
