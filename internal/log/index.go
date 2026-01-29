@@ -4,7 +4,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/docker/go-units"
 	"github.com/tysonmote/gommap"
 )
 
@@ -35,7 +34,7 @@ type index struct {
 }
 
 // newIndex creates a new index for the given file.
-func newIndex(f *os.File) (*index, error) {
+func newIndex(f *os.File, c Config) (*index, error) {
 	idx := &index{
 		file: f,
 	}
@@ -48,9 +47,7 @@ func newIndex(f *os.File) (*index, error) {
 	idx.size = uint64(info.Size())
 
 	// preset the file size since mmap can't enlarge the file during the mapping
-	// TODO: define the max index size via config
-	var maxIndexBytes int64 = 10 * units.MiB
-	if err = os.Truncate(f.Name(), maxIndexBytes); err != nil {
+	if err = os.Truncate(f.Name(), int64(c.Segment.MaxIndexBytes)); err != nil {
 		return nil, err
 	}
 
