@@ -47,7 +47,7 @@ func newIndex(f *os.File, c Config) (*index, error) {
 	idx.size = uint64(info.Size())
 
 	// preset the file size since mmap can't enlarge the file during the mapping
-	if err = os.Truncate(f.Name(), int64(c.Segment.MaxIndexBytes)); err != nil {
+	if err = os.Truncate(f.Name(), int64(c.segment.maxIndexBytes)); err != nil {
 		return nil, err
 	}
 

@@ -15,13 +15,11 @@ func TestSegment(t *testing.T) {
 	tmpdir := t.TempDir()
 	defer os.RemoveAll(tmpdir)
 
-	c := Config{}
-	c.Segment.MaxIndexBytes = 1 * units.MiB
-	c.Segment.MaxStoreBytes = 10 * units.MiB
+	c := NewConfig().WithSegmentMaxStoreBytes(10 * units.MiB)
 
 	baseOffset := rand.Int()
 
-	s, err := newSegment(tmpdir, uint64(baseOffset), c)
+	s, err := newSegment(tmpdir, uint64(baseOffset), *c)
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -40,7 +38,7 @@ func TestSegment(t *testing.T) {
 	require.NoError(t, err)
 
 	// reopen the segment
-	s, err = newSegment(tmpdir, uint64(baseOffset), c)
+	s, err = newSegment(tmpdir, uint64(baseOffset), *c)
 	require.NoError(t, err)
 	defer s.Close()
 

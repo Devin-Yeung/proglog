@@ -9,15 +9,15 @@ import (
 )
 
 func TestIndex(t *testing.T) {
-	config := Config{}
-	config.Segment.MaxIndexBytes = 10 * units.MiB
+	config := NewConfig().WithSegmentMaxIndexBytes(10 * units.MiB)
+
 	// create a temp file for testing
 	f, err := os.CreateTemp(os.TempDir(), "index_test")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 
 	// create a new index
-	index, err := newIndex(f, config)
+	index, err := newIndex(f, *config)
 	require.NoError(t, err)
 	defer index.Close()
 
