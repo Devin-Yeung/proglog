@@ -53,8 +53,10 @@ func (l *Log) setup() error {
 		}
 
 		rawOffset := strings.TrimSuffix(file.Name(), path.Ext(file.Name()))
-		// todo: handle error or just skip invalid files?
-		offset, _ := strconv.ParseUint(rawOffset, 10, 64)
+		offset, err := strconv.ParseUint(rawOffset, 10, 64)
+		if err != nil {
+			continue // skip files with invalid names
+		}
 		baseOffsets = append(baseOffsets, offset)
 	}
 

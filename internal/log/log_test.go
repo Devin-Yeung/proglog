@@ -30,7 +30,7 @@ func TestLogIntegration(t *testing.T) {
 		require.Equal(t, want.Offset, got.Offset)
 	}
 
-	log.Close()
+	require.NoError(t, log.Close())
 
 	// reopen log
 	log, err = NewLog(tempdir, *config)
