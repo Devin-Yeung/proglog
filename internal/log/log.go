@@ -1,6 +1,7 @@
 package log
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"sort"
@@ -9,6 +10,10 @@ import (
 	"sync"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
+)
+
+var (
+	ErrOffsetOutOfRange = fmt.Errorf("offset out of range")
 )
 
 type Log struct {
@@ -100,6 +105,40 @@ func (l *Log) Append(record *api.Record) (uint64, error) {
 		}
 	}
 	return offset, nil
+}
+
+// Read retrieves a record by its offset from the log.
+func (l *Log) Read(offset uint64) (*api.Record, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	// find the segment that contains the offset
+	var s *segment
+	for _, seg := range l.segments {
+		if seg.baseOffset <= offset && offset < seg.nextOffset {
+			s = seg
+			break
+		}
+	}
+
+	if s == nil {
+		return nil, ErrOffsetOutOfRange
+	}
+
+	return s.Read(offset)
+}
+
+// Close closes all segments in the log.
+func (l *Log) Close() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	for _, s := range l.segments {
+		if err := s.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // tidyOffsets removes duplicates from the offsets slice and return a sorted slice of unique offsets.
