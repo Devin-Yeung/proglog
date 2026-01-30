@@ -28,7 +28,6 @@ jobs:
   coverage:
     name: codecov / ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
-    needs: test
     strategy:
       fail-fast: false
       matrix:
