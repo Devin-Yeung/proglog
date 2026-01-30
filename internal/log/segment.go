@@ -78,7 +78,7 @@ func (s *segment) Append(record *api.Record) (offset uint64, err error) {
 	// append to the store
 	_, pos, err := s.store.Append(p)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 
 	// append to the index
