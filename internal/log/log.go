@@ -185,6 +185,20 @@ func (l *Log) HighestOffset() (uint64, error) {
 	return offset - 1, nil
 }
 
+// Length returns the number of records in the log.
+func (l *Log) Length() (uint64, error) {
+	low, err := l.LowestOffset()
+	if err != nil {
+		return 0, err
+	}
+
+	high, err := l.HighestOffset()
+	if err != nil {
+		return 0, err
+	}
+	return high - low + 1, nil
+}
+
 // tidyOffsets removes duplicates from the offsets slice and return a sorted slice of unique offsets.
 func tidyOffsets(offsets []uint64) []uint64 {
 	seen := make(map[uint64]struct{})
