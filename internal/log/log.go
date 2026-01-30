@@ -6,11 +6,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+
+	api "github.com/Devin-Yeung/proglog/api/v1"
 )
 
 type Log struct {
 	Dir    string
 	Config Config
+	mu     sync.RWMutex
 	// current active segment for appending new records
 	activeSegment *segment
 	// all segments, including active and inactive ones
@@ -76,6 +80,26 @@ func (l *Log) newSegment(baseOffset uint64) error {
 	l.segments = append(l.segments, s)
 	l.activeSegment = s
 	return nil
+}
+
+// Append adds a new record to the log and returns its index
+func (l *Log) Append(record *api.Record) (uint64, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	offset, err := l.activeSegment.Append(record)
+	if err != nil {
+		return 0, err
+	}
+
+	// check if active segment is full
+	if l.activeSegment.IsFull() {
+		err = l.newSegment(l.activeSegment.nextOffset)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return offset, nil
 }
 
 // tidyOffsets removes duplicates from the offsets slice and return a sorted slice of unique offsets.

@@ -128,3 +128,8 @@ func (s *segment) Close() error {
 
 	return nil
 }
+
+func (s *segment) IsFull() bool {
+	return s.store.size >= s.config.segment.maxStoreBytes ||
+		s.index.size >= s.config.segment.maxIndexBytes
+}
