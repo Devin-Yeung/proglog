@@ -143,6 +143,29 @@ func (l *Log) Close() error {
 	return nil
 }
 
+// LowestOffset returns the lowest offset in the log.
+// The api is reserved for distributed log use cases.
+func (l *Log) LowestOffset() (uint64, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.segments[0].baseOffset, nil
+}
+
+// HighestOffset returns the highest offset in the log.
+// The api is reserved for distributed log use cases.
+func (l *Log) HighestOffset() (uint64, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	// right boundary (exclusive)
+	offset := l.segments[len(l.segments)-1].nextOffset
+
+	if offset == 0 {
+		return 0, ErrOffsetOutOfRange
+	}
+
+	return offset - 1, nil
+}
+
 // tidyOffsets removes duplicates from the offsets slice and return a sorted slice of unique offsets.
 func tidyOffsets(offsets []uint64) []uint64 {
 	seen := make(map[uint64]struct{})
