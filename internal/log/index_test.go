@@ -68,3 +68,31 @@ func TestIndex(t *testing.T) {
 	require.Equal(t, entries[len(entries)-1].position, lastPosition)
 
 }
+
+func TestIndexRemove(t *testing.T) {
+	config := NewConfig().WithSegmentMaxIndexBytes(10 * units.MiB)
+
+	// create a temp file for testing
+	f, err := os.CreateTemp(os.TempDir(), "index_remove_test")
+	require.NoError(t, err)
+
+	// create a new index
+	index, err := newIndex(f, *config)
+	require.NoError(t, err)
+
+	// write some entries
+	err = index.Write(0, 0)
+	require.NoError(t, err)
+
+	// get the file name before removing
+	filename := index.file.Name()
+
+	// remove the index
+	err = index.Remove()
+	require.NoError(t, err)
+
+	// verify the file no longer exists
+	_, err = os.Stat(filename)
+	require.Error(t, err)
+	require.True(t, os.IsNotExist(err))
+}

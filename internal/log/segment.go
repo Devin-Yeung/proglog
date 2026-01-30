@@ -116,6 +116,19 @@ func (s *segment) Read(offset uint64) (*api.Record, error) {
 	return record, nil
 }
 
+// Remove removes the segment's store and index files from disk.
+func (s *segment) Remove() error {
+	// remove the index
+	if err := s.index.Remove(); err != nil {
+		return err
+	}
+	// remove the store
+	if err := s.store.Remove(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Close closes the segment's store and index.
 func (s *segment) Close() error {
 	if err := s.index.Close(); err != nil {

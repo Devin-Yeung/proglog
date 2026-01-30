@@ -119,3 +119,11 @@ func (s *store) Close() error {
 
 	return s.File.Close()
 }
+
+// Remove closes the store and removes the underlying file from disk.
+func (s *store) Remove() error {
+	if err := s.Close(); err != nil {
+		return err
+	}
+	return os.Remove(s.File.Name())
+}

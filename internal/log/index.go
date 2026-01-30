@@ -116,3 +116,11 @@ func (i *index) Write(offset uint32, pos uint64) error {
 
 	return nil
 }
+
+// Remove closes the index and removes the underlying file from disk.
+func (i *index) Remove() error {
+	if err := i.Close(); err != nil {
+		return err
+	}
+	return os.Remove(i.file.Name())
+}

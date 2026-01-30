@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"path"
 	"testing"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
@@ -49,4 +50,45 @@ func TestSegment(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, want.Value, got.Value)
 	}
+}
+
+func TestSegmentRemove(t *testing.T) {
+	tmpdir := t.TempDir()
+
+	c := NewConfig().WithSegmentMaxStoreBytes(10 * units.MiB)
+
+	baseOffset := rand.Int()
+
+	s, err := newSegment(tmpdir, uint64(baseOffset), *c)
+	require.NoError(t, err)
+
+	// append some records
+	for i := 0; i < 3; i++ {
+		want := &api.Record{Value: []byte(fmt.Sprintf("%d", baseOffset+i))}
+		_, err := s.Append(want)
+		require.NoError(t, err)
+	}
+
+	// get the file paths before removing
+	storePath := path.Join(tmpdir, fmt.Sprintf("%d.store", baseOffset))
+	indexPath := path.Join(tmpdir, fmt.Sprintf("%d.index", baseOffset))
+
+	// verify files exist before removal
+	_, err = os.Stat(storePath)
+	require.NoError(t, err)
+	_, err = os.Stat(indexPath)
+	require.NoError(t, err)
+
+	// remove the segment
+	err = s.Remove()
+	require.NoError(t, err)
+
+	// verify both files no longer exist
+	_, err = os.Stat(storePath)
+	require.Error(t, err)
+	require.True(t, os.IsNotExist(err))
+
+	_, err = os.Stat(indexPath)
+	require.Error(t, err)
+	require.True(t, os.IsNotExist(err))
 }
