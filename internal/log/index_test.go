@@ -62,6 +62,10 @@ func TestIndex(t *testing.T) {
 	f, err = os.OpenFile(f.Name(), os.O_RDWR, 0600)
 	require.NoError(t, err)
 
+	index, err = newIndex(f, *config)
+	require.NoError(t, err)
+	defer index.Close()
+
 	lastOffset, lastPosition, err = index.Read(-1)
 	require.NoError(t, err)
 	require.Equal(t, entries[len(entries)-1].offset, lastOffset)

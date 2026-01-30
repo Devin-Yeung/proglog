@@ -62,7 +62,7 @@ func newIndex(f *os.File, c Config) (*index, error) {
 	return idx, nil
 }
 
-// Close ensures that all changes to the memory-mapped file are synchronized
+// Close ensures that all changes to the memory-mapped file are synchronized and releases all resources.
 func (i *index) Close() error {
 	if err := i.mmap.Sync(gommap.MS_SYNC); err != nil {
 		return err
@@ -74,7 +74,10 @@ func (i *index) Close() error {
 	if err := i.file.Truncate(int64(i.size)); err != nil {
 		return err
 	}
-	return nil
+	if err := i.mmap.UnsafeUnmap(); err != nil {
+		return err
+	}
+	return i.file.Close()
 }
 
 // Read takes an index and returns the corresponding de-surged offset and absolute position in the store file.
