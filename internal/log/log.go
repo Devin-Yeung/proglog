@@ -143,6 +143,25 @@ func (l *Log) Close() error {
 	return nil
 }
 
+// Truncate removes all segments with base offsets lower than the specified lowest offset.
+func (l *Log) Truncate(lowest uint64) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	var segments []*segment
+	for _, s := range l.segments {
+		if s.nextOffset <= lowest {
+			if err := s.Remove(); err != nil {
+				return err
+			}
+		} else {
+			segments = append(segments, s)
+		}
+	}
+	l.segments = segments
+	return nil
+}
+
 // LowestOffset returns the lowest offset in the log.
 // The api is reserved for distributed log use cases.
 func (l *Log) LowestOffset() (uint64, error) {
