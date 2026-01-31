@@ -118,4 +118,7 @@ func testReopen(t *testing.T, log *Log) {
 	size, err := log.Length()
 	require.NoError(t, err)
 	require.Equal(t, uint64(100), size)
+
+	err = log.Close()
+	require.NoError(t, err)
 }
