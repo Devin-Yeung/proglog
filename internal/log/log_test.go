@@ -71,7 +71,7 @@ func testTruncateActive(t *testing.T, log *Log) {
 	}
 
 	// can't truncate all records
-	err := log.Truncate(100)
+	err := log.Truncate(50)
 	require.ErrorIs(t, err, ErrSegmentActive)
 }
 

@@ -150,7 +150,7 @@ func (l *Log) Truncate(lowest uint64) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if lowest > l.activeSegment.nextOffset {
+	if lowest >= l.activeSegment.nextOffset {
 		return ErrSegmentActive
 	}
 
