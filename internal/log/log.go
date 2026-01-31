@@ -173,6 +173,10 @@ func (l *Log) Truncate(lowest uint64) error {
 func (l *Log) LowestOffset() (uint64, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+	// Invariant: l.segments is never empty after successful initialization.
+	if len(l.segments) == 0 {
+		panic("segments list should never be empty")
+	}
 	return l.segments[0].baseOffset, nil
 }
 
@@ -181,6 +185,10 @@ func (l *Log) LowestOffset() (uint64, error) {
 func (l *Log) HighestOffset() (uint64, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+	// Invariant: l.segments is never empty after successful initialization.
+	if len(l.segments) == 0 {
+		panic("segments list should never be empty")
+	}
 	// right boundary (exclusive)
 	offset := l.segments[len(l.segments)-1].nextOffset
 
