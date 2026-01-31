@@ -32,26 +32,30 @@ func testTruncate(t *testing.T, log *Log) {
 		require.NoError(t, err)
 	}(log)
 
+	n := uint64(50)
+
 	// append records to create multiple segments
-	for i := 0; i < 50; i++ {
-		_, err := log.Append(&api.Record{Value: []byte(fmt.Sprintf("test data %d", i))})
+	for i := uint64(0); i < n; i++ {
+		_, err := log.Append(&api.Record{Value: []byte("test data")})
 		require.NoError(t, err)
 	}
 
-	// get the lowest and highest offsets
+	// truncate
+	err := log.Truncate(uint64(n / 2))
+	require.NoError(t, err)
+
+	// the size should be less than before
 	size, err := log.Length()
 	require.NoError(t, err)
-	require.Equal(t, uint64(50), size)
+	require.Less(t, size, n)
 
-	// truncate
-	err = log.Truncate(25)
+	// the first element can't be read
+	_, err = log.Read(0)
+	require.ErrorIs(t, err, ErrOffsetOutOfRange)
+
+	// the last element can be read
+	_, err = log.Read(n - 1)
 	require.NoError(t, err)
-
-	// verify that records below the truncation offset are removed
-	for i := uint64(0); i < 25; i++ {
-		_, err := log.Read(i)
-		require.ErrorIs(t, err, ErrOffsetOutOfRange)
-	}
 }
 
 func testTruncateActive(t *testing.T, log *Log) {

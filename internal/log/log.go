@@ -160,6 +160,8 @@ func (l *Log) Truncate(lowest uint64) error {
 			if err := s.Remove(); err != nil {
 				return err
 			}
+		} else {
+			segments = append(segments, s)
 		}
 	}
 	l.segments = segments
