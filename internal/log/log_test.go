@@ -10,9 +10,10 @@ import (
 
 func TestLog(t *testing.T) {
 	for scenario, fn := range map[string]func(t *testing.T, log *Log){
-		"append/read": testAppendRead,
-		"reopen":      testReopen,
-		"truncate":    testTruncate,
+		"append/read":             testAppendRead,
+		"reopen":                  testReopen,
+		"truncate":                testTruncate,
+		"truncate active segment": testTruncateActive,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			tempdir := t.TempDir()
@@ -38,31 +39,36 @@ func testTruncate(t *testing.T, log *Log) {
 	}
 
 	// get the lowest and highest offsets
-	lowest, err := log.LowestOffset()
+	size, err := log.Length()
 	require.NoError(t, err)
-	highest, err := log.HighestOffset()
-	require.NoError(t, err)
-
-	// choose a truncate point in the middle
-	truncateOffset := lowest + (highest-lowest)/2
+	require.Equal(t, uint64(50), size)
 
 	// truncate
-	err = log.Truncate(truncateOffset)
+	err = log.Truncate(25)
 	require.NoError(t, err)
 
-	// truncated offsets should return ErrOffsetOutOfRange
-	_, err = log.Read(lowest)
-	require.ErrorIs(t, err, ErrOffsetOutOfRange)
+	// verify that records below the truncation offset are removed
+	for i := uint64(0); i < 25; i++ {
+		_, err := log.Read(i)
+		require.ErrorIs(t, err, ErrOffsetOutOfRange)
+	}
+}
 
-	// lowest offset should increase
-	newLowest, err := log.LowestOffset()
-	require.NoError(t, err)
-	require.Greater(t, newLowest, lowest)
+func testTruncateActive(t *testing.T, log *Log) {
+	defer func(log *Log) {
+		err := log.Close()
+		require.NoError(t, err)
+	}(log)
 
-	// non-truncated offsets should still be readable
-	record, err := log.Read(highest)
-	require.NoError(t, err)
-	require.NotNil(t, record)
+	// append records to create multiple segments
+	for i := 0; i < 50; i++ {
+		_, err := log.Append(&api.Record{Value: []byte(fmt.Sprintf("test data %d", i))})
+		require.NoError(t, err)
+	}
+
+	// can't truncate all records
+	err := log.Truncate(100)
+	require.ErrorIs(t, err, ErrSegmentActive)
 }
 
 func testAppendRead(t *testing.T, log *Log) {

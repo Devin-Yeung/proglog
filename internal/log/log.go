@@ -14,6 +14,7 @@ import (
 
 var (
 	ErrOffsetOutOfRange = fmt.Errorf("offset out of range")
+	ErrSegmentActive    = fmt.Errorf("cannot truncate active segment")
 )
 
 type Log struct {
@@ -144,18 +145,21 @@ func (l *Log) Close() error {
 }
 
 // Truncate removes all segments with base offsets lower than the specified lowest offset.
+// If caller try to truncate the active segment, an error will be returned.
 func (l *Log) Truncate(lowest uint64) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	if lowest > l.activeSegment.nextOffset {
+		return ErrSegmentActive
+	}
+
 	var segments []*segment
 	for _, s := range l.segments {
-		if s.nextOffset <= lowest {
+		if s.nextOffset-1 < lowest {
 			if err := s.Remove(); err != nil {
 				return err
 			}
-		} else {
-			segments = append(segments, s)
 		}
 	}
 	l.segments = segments
