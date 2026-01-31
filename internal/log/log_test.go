@@ -86,12 +86,12 @@ func testAppendRead(t *testing.T, log *Log) {
 		// append record
 		idx, err := log.Append(&want)
 		require.NoError(t, err)
-		require.Equal(t, idx, uint64(i))
+		require.Equal(t, uint64(i), idx)
 		// read record
 		got, err := log.Read(idx)
 		require.NoError(t, err)
 		require.Equal(t, want.Value, got.Value)
-		require.Equal(t, want.Offset, got.Offset)
+		require.Equal(t, uint64(i), got.Offset)
 	}
 
 	size, err := log.Length()
