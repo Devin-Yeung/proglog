@@ -26,7 +26,7 @@ jobs:
         with:
           go-version: 'stable'
       - name: Run tests
-        run: go test -v ./...
+        run: go test -v -race ./...
   coverage:
     name: codecov / ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
