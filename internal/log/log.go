@@ -191,15 +191,12 @@ func (l *Log) HighestOffset() (uint64, error) {
 
 // Length returns the number of records in the log.
 func (l *Log) Length() (uint64, error) {
-	low, err := l.LowestOffset()
-	if err != nil {
-		return 0, err
-	}
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 
-	high, err := l.HighestOffset()
-	if err != nil {
-		return 0, err
-	}
+	low := l.segments[0].baseOffset
+	high := l.segments[len(l.segments)-1].nextOffset - 1
+
 	return high - low + 1, nil
 }
 
