@@ -78,7 +78,7 @@ func (s *segment) Append(record *api.Record) (offset uint64, err error) {
 	// append to the store
 	_, pos, err := s.store.Append(p)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 
 	// append to the index
@@ -116,6 +116,19 @@ func (s *segment) Read(offset uint64) (*api.Record, error) {
 	return record, nil
 }
 
+// Remove removes the segment's store and index files from disk.
+func (s *segment) Remove() error {
+	// remove the index
+	if err := s.index.Remove(); err != nil {
+		return err
+	}
+	// remove the store
+	if err := s.store.Remove(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Close closes the segment's store and index.
 func (s *segment) Close() error {
 	if err := s.index.Close(); err != nil {
@@ -127,4 +140,9 @@ func (s *segment) Close() error {
 	}
 
 	return nil
+}
+
+func (s *segment) IsFull() bool {
+	return s.store.size >= s.config.segment.maxStoreBytes ||
+		s.index.size >= s.config.segment.maxIndexBytes
 }
