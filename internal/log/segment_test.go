@@ -9,6 +9,7 @@ import (
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
 	"github.com/docker/go-units"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,13 +28,13 @@ func TestSegment(t *testing.T) {
 		want := &api.Record{Value: []byte(fmt.Sprintf("%d", baseOffset+i))}
 		// append the record to the segment
 		offset, err := s.Append(want)
-		require.NoError(t, err)
-		require.Equal(t, uint64(baseOffset+i), offset)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(baseOffset+i), offset)
 
 		// read the record back from the segment
 		got, err := s.Read(offset)
-		require.NoError(t, err)
-		require.Equal(t, want.Value, got.Value)
+		assert.NoError(t, err)
+		assert.Equal(t, want.Value, got.Value)
 	}
 	err = s.Close()
 	require.NoError(t, err)
@@ -47,8 +48,8 @@ func TestSegment(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		want := &api.Record{Value: []byte(fmt.Sprintf("%d", baseOffset+i))}
 		got, err := s.Read(uint64(baseOffset + i))
-		require.NoError(t, err)
-		require.Equal(t, want.Value, got.Value)
+		assert.NoError(t, err)
+		assert.Equal(t, want.Value, got.Value)
 	}
 }
 
@@ -85,10 +86,8 @@ func TestSegmentRemove(t *testing.T) {
 
 	// verify both files no longer exist
 	_, err = os.Stat(storePath)
-	require.Error(t, err)
-	require.True(t, os.IsNotExist(err))
+	require.ErrorIs(t, err, os.ErrNotExist)
 
 	_, err = os.Stat(indexPath)
-	require.Error(t, err)
-	require.True(t, os.IsNotExist(err))
+	require.ErrorIs(t, err, os.ErrNotExist)
 }

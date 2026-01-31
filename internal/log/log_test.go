@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +38,7 @@ func testTruncate(t *testing.T, log *Log) {
 	// append records to create multiple segments
 	for i := uint64(0); i < n; i++ {
 		_, err := log.Append(&api.Record{Value: []byte("test data")})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}
 
 	// truncate
@@ -67,7 +68,7 @@ func testTruncateActive(t *testing.T, log *Log) {
 	// append records to create multiple segments
 	for i := 0; i < 50; i++ {
 		_, err := log.Append(&api.Record{Value: []byte(fmt.Sprintf("test data %d", i))})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}
 
 	// can't truncate all records
@@ -85,13 +86,13 @@ func testAppendRead(t *testing.T, log *Log) {
 		want := api.Record{Value: []byte(fmt.Sprintf("testing record %d", i))}
 		// append record
 		idx, err := log.Append(&want)
-		require.NoError(t, err)
-		require.Equal(t, uint64(i), idx)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(i), idx)
 		// read record
 		got, err := log.Read(idx)
-		require.NoError(t, err)
-		require.Equal(t, want.Value, got.Value)
-		require.Equal(t, uint64(i), got.Offset)
+		assert.NoError(t, err)
+		assert.Equal(t, want.Value, got.Value)
+		assert.Equal(t, uint64(i), got.Offset)
 	}
 
 	size, err := log.Length()
@@ -105,7 +106,7 @@ func testReopen(t *testing.T, log *Log) {
 		want := api.Record{Value: []byte(fmt.Sprintf("testing record %d", i))}
 		// append record
 		_, err := log.Append(&want)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}
 
 	err := log.Close()

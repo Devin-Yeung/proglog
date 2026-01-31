@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,8 +36,8 @@ func testAppend(t *testing.T, s *store) {
 	t.Helper()
 	for i := uint64(1); i < 4; i++ {
 		n, pos, err := s.Append(dummyWrite)
-		require.NoError(t, err)
-		require.Equal(t, pos+n, width*i)
+		assert.NoError(t, err)
+		assert.Equal(t, pos+n, width*i)
 	}
 }
 
@@ -45,8 +46,8 @@ func testRead(t *testing.T, s *store) {
 	var pos uint64
 	for i := uint64(1); i < 4; i++ {
 		read, err := s.Read(pos)
-		require.NoError(t, err)
-		require.Equal(t, dummyWrite, read)
+		assert.NoError(t, err)
+		assert.Equal(t, dummyWrite, read)
 		pos += width
 	}
 }
@@ -73,8 +74,7 @@ func TestStoreRemove(t *testing.T) {
 
 	// verify the file no longer exists
 	_, err = os.Stat(filename)
-	require.Error(t, err)
-	require.True(t, os.IsNotExist(err))
+	require.ErrorIs(t, err, os.ErrNotExist)
 
 	// verify the store is closed - trying to read should fail
 	_, err = s.Read(0)

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/docker/go-units"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,18 +38,18 @@ func TestIndex(t *testing.T) {
 
 	for _, e := range entries {
 		err = index.Write(e.offset, e.position)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		_, pos, err := index.Read(int64(e.offset))
-		require.NoError(t, err)
-		require.Equal(t, e.position, pos)
+		assert.NoError(t, err)
+		assert.Equal(t, e.position, pos)
 	}
 
 	// read last entry
 	lastOffset, lastPosition, err := index.Read(-1)
 	require.NoError(t, err)
-	require.Equal(t, entries[len(entries)-1].offset, lastOffset)
-	require.Equal(t, entries[len(entries)-1].position, lastPosition)
+	assert.Equal(t, entries[len(entries)-1].offset, lastOffset)
+	assert.Equal(t, entries[len(entries)-1].position, lastPosition)
 
 	// index out of bounds should give an error
 	_, _, err = index.Read(int64(len(entries)))
@@ -68,8 +69,8 @@ func TestIndex(t *testing.T) {
 
 	lastOffset, lastPosition, err = index.Read(-1)
 	require.NoError(t, err)
-	require.Equal(t, entries[len(entries)-1].offset, lastOffset)
-	require.Equal(t, entries[len(entries)-1].position, lastPosition)
+	assert.Equal(t, entries[len(entries)-1].offset, lastOffset)
+	assert.Equal(t, entries[len(entries)-1].position, lastPosition)
 
 }
 
@@ -97,6 +98,5 @@ func TestIndexRemove(t *testing.T) {
 
 	// verify the file no longer exists
 	_, err = os.Stat(filename)
-	require.Error(t, err)
-	require.True(t, os.IsNotExist(err))
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
