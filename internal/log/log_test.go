@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
@@ -10,19 +11,43 @@ import (
 )
 
 func TestLog(t *testing.T) {
-	for scenario, fn := range map[string]func(t *testing.T, log *Log){
-		"append/read":             testAppendRead,
-		"reopen":                  testReopen,
-		"truncate":                testTruncate,
-		"truncate active segment": testTruncateActive,
+	defaultConfig := func() *Config {
+		return NewConfig().WithSegmentMaxStoreBytes(128)
+	}
+
+	type testCase struct {
+		name string
+		fn   func(t *testing.T, log *Log)
+		cfg  *Config
+	}
+
+	configFor := func(cfg *Config) *Config {
+		if cfg == nil {
+			return defaultConfig()
+		}
+		return cfg
+	}
+
+	for _, tc := range []testCase{
+		{name: "append/read", fn: testAppendRead},
+		{name: "reopen", fn: testReopen},
+		{name: "truncate", fn: testTruncate},
+		{name: "truncate active segment", fn: testTruncateActive},
+		{
+			name: "concurrent writes",
+			fn:   testConcurrentWrites,
+			cfg: NewConfig().
+				WithSegmentMaxStoreBytes(4 * 1024 * 1024).
+				WithSegmentMaxIndexBytes(4 * 1024 * 1024),
+		},
 	} {
-		t.Run(scenario, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			tempdir := t.TempDir()
-			config := NewConfig().WithSegmentMaxStoreBytes(128)
+			config := configFor(tc.cfg)
 			log, err := NewLog(tempdir, *config)
 			require.NoError(t, err)
 			// the lifetime of the log should be managed by each test
-			fn(t, log)
+			tc.fn(t, log)
 		})
 	}
 }
@@ -122,4 +147,32 @@ func testReopen(t *testing.T, log *Log) {
 
 	err = log.Close()
 	require.NoError(t, err)
+}
+
+func testConcurrentWrites(t *testing.T, log *Log) {
+	defer func(log *Log) {
+		err := log.Close()
+		require.NoError(t, err)
+	}(log)
+
+	wg := sync.WaitGroup{}
+
+	worker := func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			_, err := log.Append(&api.Record{Value: []byte("test data")})
+			assert.NoError(t, err)
+		}
+	}
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go worker()
+	}
+
+	wg.Wait()
+
+	size, err := log.Length()
+	require.NoError(t, err)
+	require.Equal(t, uint64(10000), size)
 }
