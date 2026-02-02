@@ -1,0 +1,104 @@
+package server
+
+import (
+	"context"
+	"net"
+	"testing"
+
+	api "github.com/Devin-Yeung/proglog/api/v1"
+	"github.com/Devin-Yeung/proglog/internal/log"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+func TestLog(t *testing.T) {
+	type testCase struct {
+		name string
+		fn   func(t *testing.T, client api.LogClient)
+	}
+
+	for _, tc := range []testCase{
+		{name: "produce/consume", fn: testProduceConsume},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, tearDown := setupTestServer(t)
+			defer tearDown()
+			tc.fn(t, client)
+		})
+	}
+}
+
+func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
+	t.Helper()
+
+	// setup a tcp listener on a random port
+	listener, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	// setup gRPC client connection
+	clientOptions := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	}
+
+	conn, err := grpc.NewClient(
+		listener.Addr().String(),
+		clientOptions...,
+	)
+	require.NoError(t, err)
+
+	// create an underlying log
+	cfg := log.NewConfig()
+	log, err := log.NewLog(
+		t.TempDir(),
+		*cfg,
+	)
+	require.NoError(t, err)
+
+	// create a new gRPC server and spin it up
+	server, err := NewGRPCServer(&Config{CommitLog: log})
+	require.NoError(t, err)
+
+	client = api.NewLogClient(conn)
+
+	go func() {
+		server.Serve(listener)
+	}()
+
+	tearDown = func() {
+		// close the client connection
+		conn.Close()
+		// close the server
+		server.Stop()
+		// close the listener
+		listener.Close()
+		// close the log
+		log.Close()
+	}
+
+	return
+}
+
+func testProduceConsume(t *testing.T, client api.LogClient) {
+	ctx := context.Background()
+
+	want := &api.Record{
+		Value: []byte("hello world"),
+	}
+
+	produceResp, err := client.Produce(
+		ctx,
+		&api.ProduceRequest{Record: want},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, produceResp.Offset, uint64(0))
+
+	consumeResp, err := client.Consume(
+		ctx,
+		&api.ConsumeRequest{Offset: produceResp.Offset},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, want.Value, consumeResp.Record.Value)
+	assert.Equal(t, produceResp.Offset, consumeResp.Record.Offset)
+}
