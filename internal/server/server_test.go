@@ -40,7 +40,7 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 	t.Helper()
 
 	// setup a tcp listener on a random port
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	// setup gRPC client connection
