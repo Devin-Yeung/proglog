@@ -7,12 +7,15 @@
 }:
 
 {
+  env.PROGLOG_CONFIG_DIR = "${config.devenv.state}/proglog/config";
+
   # https://devenv.sh/packages/
   packages = with pkgs; [
     protobuf
     protoc-gen-go
     protoc-gen-go-grpc
     gotestsum
+    cfssl
     just
   ];
 
