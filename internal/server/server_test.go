@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +26,7 @@ func TestLog(t *testing.T) {
 	for _, tc := range []testCase{
 		{name: "produce/consume", fn: testProduceConsume},
 		{name: "consume stream", fn: testConsumeStream},
+		{name: "produce stream", fn: testProduceStream},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			client, tearDown := setupTestServer(t)
@@ -142,4 +145,49 @@ func testConsumeStream(t *testing.T, client api.LogClient) {
 			assert.NoError(t, err)
 		}
 	}
+}
+
+func testProduceStream(t *testing.T, client api.LogClient) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stream, err := client.ProduceStream(ctx)
+	require.NoError(t, err)
+
+	const recordCount = 10000
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < recordCount; i++ {
+			want := &api.Record{
+				Value: []byte(fmt.Sprintf("record %d", i)),
+			}
+
+			if err := stream.Send(&api.ProduceRequest{Record: want}); err != nil {
+				require.NoError(t, err)
+				return
+			}
+		}
+
+		err = stream.CloseSend()
+		require.NoError(t, err)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < recordCount; i++ {
+			resp, err := stream.Recv()
+			require.NoError(t, err)
+			assert.Equal(t, uint64(i), resp.Offset)
+		}
+
+		_, err = stream.Recv()
+		assert.ErrorIs(t, err, io.EOF)
+	}()
+
+	wg.Wait()
 }

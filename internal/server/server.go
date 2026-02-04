@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"io"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
 	"google.golang.org/grpc"
@@ -81,6 +82,27 @@ func (s *grpcLogServer) ConsumeStream(req *api.ConsumeRequest, stream api.Log_Co
 		}
 	}
 
+}
+
+func (s *grpcLogServer) ProduceStream(stream api.Log_ProduceStreamServer) error {
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+
+		resp, err := s.Produce(stream.Context(), req)
+		if err != nil {
+			return err
+		}
+
+		if err := stream.Send(resp); err != nil {
+			return err
+		}
+	}
 }
 
 func NewGRPCServer(config *Config) (*grpc.Server, error) {
