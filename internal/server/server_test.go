@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/Devin-Yeung/proglog/internal/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -156,38 +156,39 @@ func testProduceStream(t *testing.T, client api.LogClient) {
 
 	const recordCount = 10000
 
-	wg := sync.WaitGroup{}
+	var g errgroup.Group
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	// spin a go routine to produce records
+	g.Go(func() error {
 		for i := 0; i < recordCount; i++ {
 			want := &api.Record{
 				Value: []byte(fmt.Sprintf("record %d", i)),
 			}
 
 			if err := stream.Send(&api.ProduceRequest{Record: want}); err != nil {
-				require.NoError(t, err)
-				return
+				return err
 			}
 		}
+		return stream.CloseSend()
+	})
 
-		err = stream.CloseSend()
-		require.NoError(t, err)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	// spin a go routine to receive produced record offsets
+	g.Go(func() error {
 		for i := 0; i < recordCount; i++ {
 			resp, err := stream.Recv()
-			require.NoError(t, err)
+			if err != nil {
+				return err
+			}
 			assert.Equal(t, uint64(i), resp.Offset)
 		}
 
-		_, err = stream.Recv()
-		assert.ErrorIs(t, err, io.EOF)
-	}()
+		_, err := stream.Recv()
+		if !assert.ErrorIs(t, err, io.EOF) {
+			return err
+		}
 
-	wg.Wait()
+		return nil
+	})
+
+	require.NoError(t, g.Wait())
 }
