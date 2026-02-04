@@ -13,8 +13,7 @@ import (
 )
 
 var (
-	ErrOffsetOutOfRange = fmt.Errorf("offset out of range")
-	ErrSegmentActive    = fmt.Errorf("cannot truncate active segment")
+	ErrSegmentActive = fmt.Errorf("cannot truncate active segment")
 )
 
 type Log struct {
@@ -125,7 +124,7 @@ func (l *Log) Read(offset uint64) (*api.Record, error) {
 	}
 
 	if s == nil {
-		return nil, ErrOffsetOutOfRange
+		return nil, api.ErrOffsetOutOfRange{Offset: offset}
 	}
 
 	return s.Read(offset)
@@ -193,7 +192,7 @@ func (l *Log) HighestOffset() (uint64, error) {
 	offset := l.segments[len(l.segments)-1].nextOffset
 
 	if offset == 0 {
-		return 0, ErrOffsetOutOfRange
+		return 0, api.ErrOffsetOutOfRange{Offset: offset}
 	}
 
 	return offset - 1, nil

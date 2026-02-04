@@ -77,7 +77,7 @@ func testTruncate(t *testing.T, log *Log) {
 
 	// the first element can't be read
 	_, err = log.Read(0)
-	require.ErrorIs(t, err, ErrOffsetOutOfRange)
+	require.ErrorIs(t, err, api.ErrOffsetOutOfRange{Offset: 0})
 
 	// the last element can be read
 	_, err = log.Read(n - 1)

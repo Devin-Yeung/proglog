@@ -28,8 +28,10 @@ message ConsumeResponse {
 service Log {
   rpc Produce(ProduceRequest) returns (ProduceResponse) {}
   rpc Consume(ConsumeRequest) returns (ConsumeResponse) {}
-  // Server streaming RPC: client sends a single request, server responds with a stream of messages
+  // Client send the starting offset and server sends a stream of records starting from that offset. The stream will not
+  // end even if the server has sent all existing records, it will continue to send new records as they are produced.
+  // The api is aim to allow clients to behave like `tail -f` command.
   rpc ConsumeStream(ConsumeRequest) returns (stream ConsumeResponse) {}
-  // Bi-directional streaming RPC: client and server send a stream of messages to each other
+  // Client sends a stream of records to be produced and server responds with a stream of offsets for each produced record
   rpc ProduceStream(stream ProduceRequest) returns (stream ProduceResponse) {}
 }
