@@ -32,6 +32,7 @@ jobs:
         with:
           go-version: 'stable'
       - name: Run tests
+        shell: devenv shell bash -- -e {0}
         run: go test -v -race ./...
   coverage:
     name: codecov / ${{ matrix.runner }}
@@ -55,6 +56,7 @@ jobs:
         with:
           go-version: 'stable'
       - name: Run tests
+        shell: devenv shell bash -- -e {0}
         run: go test -v -coverprofile=coverage.out ./...
       - name: Coveralls
         uses: coverallsapp/github-action@v2
