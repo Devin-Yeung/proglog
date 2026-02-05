@@ -140,7 +140,8 @@ func testConsumeStream(t *testing.T, client api.LogClient) {
 	require.NoError(t, err)
 
 	// spin a new go routine to produce records
-	go func() {
+	var g errgroup.Group
+	g.Go(func() error {
 		for i := 0; i < recordCount; i++ {
 			record := &api.Record{
 				Value:  []byte(fmt.Sprintf("offset %d", i)),
@@ -148,14 +149,12 @@ func testConsumeStream(t *testing.T, client api.LogClient) {
 			}
 
 			if err := produceStream.Send(&api.ProduceRequest{Record: record}); err != nil {
-				require.NoError(t, err)
-				return
+				return err
 			}
 		}
 
-		err := produceStream.CloseSend()
-		require.NoError(t, err)
-	}()
+		return produceStream.CloseSend()
+	})
 
 	consumeStream, err := client.ConsumeStream(
 		ctx,
@@ -173,6 +172,8 @@ func testConsumeStream(t *testing.T, client api.LogClient) {
 			assert.NoError(t, err)
 		}
 	}
+
+	require.NoError(t, g.Wait())
 }
 
 func testProduceStream(t *testing.T, client api.LogClient) {
