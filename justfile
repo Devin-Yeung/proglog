@@ -1,6 +1,8 @@
 test:
   gotestsum --format=testname
 
+setup: gencert
+
 compile:
   protoc api/v1/*.proto \
     --go_out=. \
