@@ -80,6 +80,7 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 		CAFile:   config.CAFile,
 		Server:   true,
 	})
+	require.NoError(t, err)
 
 	serverCreds := credentials.NewTLS(serverTLSConfig)
 	// create a new gRPC server and spin it up

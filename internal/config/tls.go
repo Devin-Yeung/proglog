@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"os"
 )
 
@@ -18,6 +19,7 @@ type TLSConfig struct {
 // SetupTLSConfig sets up a tls.Config based on the role (server/client)
 func SetupTLSConfig(c TLSConfig) (*tls.Config, error) {
 	tlsConfig := &tls.Config{}
+	tlsConfig.MinVersion = tls.VersionTLS12
 
 	// if cert and key files are provided, load them
 	if c.CertFile != "" && c.KeyFile != "" {
@@ -38,7 +40,7 @@ func SetupTLSConfig(c TLSConfig) (*tls.Config, error) {
 		// our private CA is the only trusted CA
 		ok := certPool.AppendCertsFromPEM(b)
 		if !ok {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse CA certificates from %s", c.CAFile)
 		}
 
 		if c.Server {
