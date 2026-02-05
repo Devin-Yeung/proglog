@@ -134,20 +134,27 @@ func testConsumeStream(t *testing.T, client api.LogClient) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	const recordCount = 10000
+
+	produceStream, err := client.ProduceStream(ctx)
+	require.NoError(t, err)
+
 	// spin a new go routine to produce records
 	go func() {
-		for i := 0; i < 10000; i++ {
+		for i := 0; i < recordCount; i++ {
 			record := &api.Record{
 				Value:  []byte(fmt.Sprintf("offset %d", i)),
 				Offset: uint64(i),
 			}
 
-			_, err := client.Produce(
-				ctx,
-				&api.ProduceRequest{Record: record},
-			)
-			require.NoError(t, err)
+			if err := produceStream.Send(&api.ProduceRequest{Record: record}); err != nil {
+				require.NoError(t, err)
+				return
+			}
 		}
+
+		err := produceStream.CloseSend()
+		require.NoError(t, err)
 	}()
 
 	consumeStream, err := client.ConsumeStream(
@@ -157,7 +164,7 @@ func testConsumeStream(t *testing.T, client api.LogClient) {
 	require.NoError(t, err)
 
 	// should always receive all records
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < recordCount; i++ {
 		select {
 		case <-ctx.Done():
 			t.Fatal("test timed out")
