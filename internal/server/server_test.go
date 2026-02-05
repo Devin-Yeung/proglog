@@ -45,7 +45,11 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 	require.NoError(t, err)
 
 	// setup TLS credentials for the client
-	clientTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{CAFile: config.CAFile})
+	clientTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
+		CertFile: config.ClientCertFile,
+		KeyFile:  config.ClientKeyFile,
+		CAFile:   config.CAFile,
+	})
 	require.NoError(t, err)
 
 	clientCreds := credentials.NewTLS(clientTLSConfig)
