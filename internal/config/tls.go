@@ -15,8 +15,8 @@ type TLSConfig struct {
 	Server bool
 }
 
-// setupTLSConfig sets up a tls.Config based on the role (server/client)
-func setupTLSConfig(c TLSConfig) (*tls.Config, error) {
+// SetupTLSConfig sets up a tls.Config based on the role (server/client)
+func SetupTLSConfig(c TLSConfig) (*tls.Config, error) {
 	tlsConfig := &tls.Config{}
 
 	// if cert and key files are provided, load them
