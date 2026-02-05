@@ -22,6 +22,9 @@ func SetupTLSConfig(c TLSConfig) (*tls.Config, error) {
 	tlsConfig.MinVersion = tls.VersionTLS12
 
 	// if cert and key files are provided, load them
+	if (c.CertFile == "") != (c.KeyFile == "") {
+		return nil, fmt.Errorf("both CertFile and KeyFile must be set together")
+	}
 	if c.CertFile != "" && c.KeyFile != "" {
 		cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
 		if err != nil {
