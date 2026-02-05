@@ -1,6 +1,8 @@
 test:
   gotestsum --format=testname
 
+setup: gencert
+
 compile:
   protoc api/v1/*.proto \
     --go_out=. \
@@ -21,6 +23,14 @@ gencert:
     -profile=server \
     test/server-csr.json \
     | cfssljson -bare server
+
+  cfssl gencert \
+    -ca=ca.pem \
+    -ca-key=ca-key.pem \
+    -config=test/ca-config.json \
+    -profile=client \
+    test/client-csr.json \
+    | cfssljson -bare client
 
   mkdir -p ${PROGLOG_CONFIG_DIR}
   mv *.pem *.csr ${PROGLOG_CONFIG_DIR}

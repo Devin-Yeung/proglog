@@ -21,11 +21,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Setup Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Setup devenv.sh
+        run: nix profile add nixpkgs#devenv
+      - name: Prepare environment
+        run: devenv shell just setup
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version: 'stable'
       - name: Run tests
+        shell: devenv shell bash -- -e {0}
         run: go test -v -race ./...
   coverage:
     name: codecov / ${{ matrix.runner }}
@@ -38,11 +45,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Setup Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Setup devenv.sh
+        run: nix profile add nixpkgs#devenv
+      - name: Prepare environment
+        run: devenv shell just setup
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version: 'stable'
       - name: Run tests
+        shell: devenv shell bash -- -e {0}
         run: go test -v -coverprofile=coverage.out ./...
       - name: Coveralls
         uses: coverallsapp/github-action@v2

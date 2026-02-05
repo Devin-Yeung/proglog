@@ -9,12 +9,13 @@ import (
 	"time"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
+	"github.com/Devin-Yeung/proglog/internal/config"
 	"github.com/Devin-Yeung/proglog/internal/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 )
 
 func TestLog(t *testing.T) {
@@ -43,9 +44,19 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
+	// setup TLS credentials for the client
+	clientTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
+		CertFile: config.ClientCertFile,
+		KeyFile:  config.ClientKeyFile,
+		CAFile:   config.CAFile,
+	})
+	require.NoError(t, err)
+
+	clientCreds := credentials.NewTLS(clientTLSConfig)
+
 	// setup gRPC client connection
 	clientOptions := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(clientCreds),
 	}
 
 	conn, err := grpc.NewClient(
@@ -62,8 +73,18 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 	)
 	require.NoError(t, err)
 
+	// setup TLS credentials for the server
+	serverTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
+		CertFile: config.ServerCertFile,
+		KeyFile:  config.ServerKeyFile,
+		CAFile:   config.CAFile,
+		Server:   true,
+	})
+	require.NoError(t, err)
+
+	serverCreds := credentials.NewTLS(serverTLSConfig)
 	// create a new gRPC server and spin it up
-	server, err := NewGRPCServer(&Config{CommitLog: log})
+	server, err := NewGRPCServer(&Config{CommitLog: log}, grpc.Creds(serverCreds))
 	require.NoError(t, err)
 
 	client = api.NewLogClient(conn)
@@ -113,21 +134,27 @@ func testConsumeStream(t *testing.T, client api.LogClient) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	const recordCount = 10000
+
+	produceStream, err := client.ProduceStream(ctx)
+	require.NoError(t, err)
+
 	// spin a new go routine to produce records
-	go func() {
-		for i := 0; i < 10000; i++ {
+	var g errgroup.Group
+	g.Go(func() error {
+		for i := 0; i < recordCount; i++ {
 			record := &api.Record{
 				Value:  []byte(fmt.Sprintf("offset %d", i)),
 				Offset: uint64(i),
 			}
 
-			_, err := client.Produce(
-				ctx,
-				&api.ProduceRequest{Record: record},
-			)
-			require.NoError(t, err)
+			if err := produceStream.Send(&api.ProduceRequest{Record: record}); err != nil {
+				return err
+			}
 		}
-	}()
+
+		return produceStream.CloseSend()
+	})
 
 	consumeStream, err := client.ConsumeStream(
 		ctx,
@@ -136,7 +163,7 @@ func testConsumeStream(t *testing.T, client api.LogClient) {
 	require.NoError(t, err)
 
 	// should always receive all records
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < recordCount; i++ {
 		select {
 		case <-ctx.Done():
 			t.Fatal("test timed out")
@@ -145,6 +172,8 @@ func testConsumeStream(t *testing.T, client api.LogClient) {
 			assert.NoError(t, err)
 		}
 	}
+
+	require.NoError(t, g.Wait())
 }
 
 func testProduceStream(t *testing.T, client api.LogClient) {
