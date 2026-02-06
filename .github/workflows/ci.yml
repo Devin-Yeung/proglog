@@ -30,7 +30,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: 'stable'
+          go-version: "stable"
       - name: Run tests
         shell: devenv shell bash -- -e {0}
         run: go test -v -race ./...
@@ -54,10 +54,12 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: 'stable'
+          go-version: "stable"
       - name: Run tests
         shell: devenv shell bash -- -e {0}
         run: go test -v -coverprofile=coverage.out ./...
+      - name: Octocov report
+        uses: k1LoW/octocov-action@v1
       - name: Coveralls
         uses: coverallsapp/github-action@v2
         with:
