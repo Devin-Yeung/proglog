@@ -2,10 +2,23 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
+	"github.com/Devin-Yeung/proglog/internal/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
+)
+
+const (
+	objectWildcard = "*"
+	produceAction  = "produce"
+	consumeAction  = "consume"
 )
 
 type CommitLog interface {
@@ -15,12 +28,19 @@ type CommitLog interface {
 	Read(offset uint64) (*api.Record, error)
 }
 
+type Authorizer interface {
+	// Authorize checks if the subject is allowed to perform the action on the object.
+	Authorize(subject, object, action string) error
+}
+
 type Config struct {
-	CommitLog
+	CommitLog  CommitLog
+	Authorizer Authorizer
 }
 
 // interface compliance check
 var _ api.LogServer = (*grpcLogServer)(nil)
+var _ Authorizer = (*auth.Authorizer)(nil)
 
 type grpcLogServer struct {
 	api.UnimplementedLogServer
@@ -28,13 +48,61 @@ type grpcLogServer struct {
 }
 
 func newGRPCLogServer(config *Config) (*grpcLogServer, error) {
-	srv := &grpcLogServer{
-		Config: config,
+	if config == nil {
+		return nil, fmt.Errorf("missing server config")
 	}
-	return srv, nil
+
+	if config.CommitLog == nil || config.Authorizer == nil {
+		return nil, fmt.Errorf("incomplete server config")
+	}
+
+	return &grpcLogServer{
+		Config: config,
+	}, nil
+}
+
+type subjectCtxKey struct{}
+
+func subject(ctx context.Context) string {
+	val := ctx.Value(subjectCtxKey{})
+	s, ok := val.(string)
+	if !ok {
+		return ""
+	}
+	return s
+}
+
+// authenticate is a gRPC interceptor that extracts the subject from the peer's TLS certificate and adds it to the context.
+func authenticate(ctx context.Context) (context.Context, error) {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return ctx, status.New(codes.Unknown, "could not find peer info").Err()
+	}
+
+	// make sure the downstream middleware can always read the subject from the context
+	if p.AuthInfo == nil {
+		return context.WithValue(ctx, subjectCtxKey{}, ""), nil
+	}
+
+	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return ctx, status.New(codes.Unknown, "unexpected peer transport credentials").Err()
+	}
+
+	sbj := tlsInfo.State.VerifiedChains[0][0].Subject.CommonName
+	ctx = context.WithValue(ctx, subjectCtxKey{}, sbj)
+	return ctx, nil
 }
 
 func (s *grpcLogServer) Produce(ctx context.Context, req *api.ProduceRequest) (*api.ProduceResponse, error) {
+	if err := s.Authorizer.Authorize(
+		subject(ctx),
+		objectWildcard,
+		produceAction,
+	); err != nil {
+		return nil, err
+	}
+
 	offset, err := s.CommitLog.Append(req.Record)
 	if err != nil {
 		return nil, err
@@ -43,6 +111,14 @@ func (s *grpcLogServer) Produce(ctx context.Context, req *api.ProduceRequest) (*
 }
 
 func (s *grpcLogServer) Consume(ctx context.Context, req *api.ConsumeRequest) (*api.ConsumeResponse, error) {
+	if err := s.Authorizer.Authorize(
+		subject(ctx),
+		objectWildcard,
+		consumeAction,
+	); err != nil {
+		return nil, err
+	}
+
 	record, err := s.CommitLog.Read(req.Offset)
 	if err != nil {
 		return nil, err
@@ -106,6 +182,17 @@ func (s *grpcLogServer) ProduceStream(stream api.Log_ProduceStreamServer) error 
 }
 
 func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, error) {
+	opts = append(opts,
+		// unary interceptor
+		grpc.ChainUnaryInterceptor(
+			grpc_auth.UnaryServerInterceptor(authenticate),
+		),
+		// streaming interceptors
+		grpc.ChainStreamInterceptor(
+			grpc_auth.StreamServerInterceptor(authenticate),
+		),
+	)
+
 	gsrv := grpc.NewServer(opts...)
 	// create the log service
 	srv, err := newGRPCLogServer(config)

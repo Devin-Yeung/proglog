@@ -9,13 +9,16 @@ import (
 	"time"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
+	"github.com/Devin-Yeung/proglog/internal/auth"
 	"github.com/Devin-Yeung/proglog/internal/config"
 	"github.com/Devin-Yeung/proglog/internal/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 )
 
 func TestLog(t *testing.T) {
@@ -30,46 +33,81 @@ func TestLog(t *testing.T) {
 		{name: "produce stream", fn: testProduceStream},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			client, tearDown := setupTestServer(t)
+			rootClient, _, tearDown := setupTestClients(t)
 			defer tearDown()
-			tc.fn(t, client)
+			tc.fn(t, rootClient)
 		})
 	}
 }
 
-func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
+func TestLogAuth(t *testing.T) {
+	type testCase struct {
+		name string
+		fn   func(t *testing.T, rootClient api.LogClient, nobodyClient api.LogClient)
+	}
+	for _, tc := range []testCase{
+		{name: "unauthorized client can't consume/produce", fn: testUnauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rootClient, nobodyClient, tearDown := setupTestClients(t)
+			defer tearDown()
+			tc.fn(t, rootClient, nobodyClient)
+		})
+	}
+}
+
+// setupClient is a helper function to create a gRPC client connection with specified TLS credentials.
+// It returns a gRPC client connection and a LogClient for making RPC calls to the server.
+func setupClient(
+	t *testing.T,
+	certFile string,
+	keyFile string,
+	addr string,
+) (*grpc.ClientConn, api.LogClient) {
+	t.Helper()
+
+	tlsConfig, err := config.SetupTLSConfig(config.TLSConfig{
+		CertFile: certFile,
+		KeyFile:  keyFile,
+		CAFile:   config.CAFile,
+		Server:   false,
+	})
+	require.NoError(t, err)
+
+	// create TLS credentials for the client
+	creds := credentials.NewTLS(tlsConfig)
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(creds),
+	}
+	// dial the server with the TLS credentials
+	conn, err := grpc.NewClient(addr, opts...)
+	require.NoError(t, err)
+
+	client := api.NewLogClient(conn)
+	return conn, client
+}
+
+// setupServer is a helper function to create and start a gRPC server with TLS credentials.
+// It returns a net.Listener for the server, the gRPC server instance, and a tearDown function to clean up resources after the test.
+func setupServer(t *testing.T) (listener net.Listener, server *grpc.Server, tearDown func()) {
 	t.Helper()
 
 	// setup a tcp listener on a random port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	// setup TLS credentials for the client
-	clientTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
-		CertFile: config.ClientCertFile,
-		KeyFile:  config.ClientKeyFile,
-		CAFile:   config.CAFile,
-	})
-	require.NoError(t, err)
-
-	clientCreds := credentials.NewTLS(clientTLSConfig)
-
-	// setup gRPC client connection
-	clientOptions := []grpc.DialOption{
-		grpc.WithTransportCredentials(clientCreds),
-	}
-
-	conn, err := grpc.NewClient(
-		listener.Addr().String(),
-		clientOptions...,
+	// create an underlying log
+	cfg := log.NewConfig()
+	commitLog, err := log.NewLog(
+		t.TempDir(),
+		*cfg,
 	)
 	require.NoError(t, err)
 
-	// create an underlying log
-	cfg := log.NewConfig()
-	log, err := log.NewLog(
-		t.TempDir(),
-		*cfg,
+	// create an authorizer
+	authorizer, err := auth.NewAuthorizer(
+		config.ACLModelFile,
+		config.ACLPolicyFile,
 	)
 	require.NoError(t, err)
 
@@ -84,24 +122,55 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 
 	serverCreds := credentials.NewTLS(serverTLSConfig)
 	// create a new gRPC server and spin it up
-	server, err := NewGRPCServer(&Config{CommitLog: log}, grpc.Creds(serverCreds))
+	server, err = NewGRPCServer(
+		&Config{
+			CommitLog:  commitLog,
+			Authorizer: authorizer,
+		},
+		grpc.Creds(serverCreds),
+	)
 	require.NoError(t, err)
 
-	client = api.NewLogClient(conn)
-
-	go func() {
-		server.Serve(listener)
-	}()
-
 	tearDown = func() {
-		// close the client connection
-		conn.Close()
 		// close the server
 		server.Stop()
 		// close the listener
 		listener.Close()
 		// close the log
-		log.Close()
+		commitLog.Close()
+	}
+
+	return listener, server, tearDown
+}
+
+func setupTestClients(t *testing.T) (rootClient api.LogClient, nobodyClient api.LogClient, tearDown func()) {
+	t.Helper()
+
+	listener, server, serverTearDown := setupServer(t)
+
+	go func() {
+		server.Serve(listener)
+	}()
+
+	rootClientConn, rootClient := setupClient(
+		t,
+		config.RootCertFile,
+		config.RootKeyFile,
+		listener.Addr().String(),
+	)
+
+	nobodyClientConn, nobodyClient := setupClient(
+		t,
+		config.NobodyCertFile,
+		config.NobodyKeyFile,
+		listener.Addr().String(),
+	)
+
+	tearDown = func() {
+		// close the client connection
+		rootClientConn.Close()
+		nobodyClientConn.Close()
+		serverTearDown()
 	}
 
 	return
@@ -220,4 +289,28 @@ func testProduceStream(t *testing.T, client api.LogClient) {
 	})
 
 	require.NoError(t, g.Wait())
+}
+
+func testUnauthorized(t *testing.T, rootClient api.LogClient, nobodyClient api.LogClient) {
+	ctx := context.Background()
+
+	produceResp, err := rootClient.Produce(
+		ctx,
+		&api.ProduceRequest{Record: &api.Record{Value: []byte("hello world")}},
+	)
+	require.NoError(t, err)
+
+	_, err = nobodyClient.Produce(
+		ctx,
+		&api.ProduceRequest{Record: &api.Record{Value: []byte("hello world")}},
+	)
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	_, err = nobodyClient.Consume(
+		ctx,
+		&api.ConsumeRequest{Offset: produceResp.Offset},
+	)
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }

@@ -1,7 +1,7 @@
 test:
   gotestsum --format=testname
 
-setup: gencert
+setup: gencert gen-acl-rules
 
 compile:
   protoc api/v1/*.proto \
@@ -10,6 +10,10 @@ compile:
     --go_opt=paths=source_relative \
     --go-grpc_opt=paths=source_relative \
     --proto_path=.
+
+gen-acl-rules:
+    cp test/model.conf ${PROGLOG_CONFIG_DIR}
+    cp test/policy.csv ${PROGLOG_CONFIG_DIR}
 
 gencert:
   cfssl gencert \
@@ -24,13 +28,26 @@ gencert:
     test/server-csr.json \
     | cfssljson -bare server
 
+  # root client is the superuser
   cfssl gencert \
     -ca=ca.pem \
     -ca-key=ca-key.pem \
     -config=test/ca-config.json \
     -profile=client \
+    -cn=root \
     test/client-csr.json \
-    | cfssljson -bare client
+    | cfssljson -bare root-client
+
+  # nobody client is the un-privileged user
+  cfssl gencert \
+    -ca=ca.pem \
+    -ca-key=ca-key.pem \
+    -config=test/ca-config.json \
+    -profile=client \
+    -cn=nobody \
+    test/client-csr.json \
+    | cfssljson -bare nobody-client
+
 
   mkdir -p ${PROGLOG_CONFIG_DIR}
   mv *.pem *.csr ${PROGLOG_CONFIG_DIR}
