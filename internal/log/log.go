@@ -1,6 +1,7 @@
 package log
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
@@ -24,12 +25,16 @@ type Log struct {
 	activeSegment *segment
 	// all segments, including active and inactive ones
 	segments []*segment
+	// notify is a broadcast channel that is closed (and replaced) on every Append.
+	// Consumers can select on this channel to be woken when new data arrives.
+	notify chan struct{}
 }
 
 func NewLog(dir string, c Config) (*Log, error) {
 	l := &Log{
 		Dir:    dir,
 		Config: c,
+		notify: make(chan struct{}),
 	}
 
 	if err := l.setup(); err != nil {
@@ -106,6 +111,11 @@ func (l *Log) Append(record *api.Record) (uint64, error) {
 			return 0, err
 		}
 	}
+
+	// broadcast to all consumers waiting for new records
+	close(l.notify)
+	l.notify = make(chan struct{})
+
 	return offset, nil
 }
 
@@ -128,6 +138,22 @@ func (l *Log) Read(offset uint64) (*api.Record, error) {
 	}
 
 	return s.Read(offset)
+}
+
+// WaitForAppend blocks until a new record is appended or the context is canceled.
+// It returns nil when a new record has been appended, or the context's error if
+// the context is done first.
+func (l *Log) WaitForAppend(ctx context.Context) error {
+	l.mu.RLock()
+	ch := l.notify
+	l.mu.RUnlock()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-ch:
+		return nil
+	}
 }
 
 // Close closes all segments in the log.

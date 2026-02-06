@@ -1,9 +1,11 @@
 package log
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
 	"github.com/stretchr/testify/assert"
@@ -40,6 +42,8 @@ func TestLog(t *testing.T) {
 				WithSegmentMaxStoreBytes(4 * 1024 * 1024).
 				WithSegmentMaxIndexBytes(4 * 1024 * 1024),
 		},
+		{name: "wait for append", fn: testWaitForAppend},
+		{name: "wait for append context canceled", fn: testWaitForAppendContextCanceled},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tempdir := t.TempDir()
@@ -147,6 +151,72 @@ func testReopen(t *testing.T, log *Log) {
 
 	err = log.Close()
 	require.NoError(t, err)
+}
+
+func testWaitForAppend(t *testing.T, log *Log) {
+	defer func(log *Log) {
+		err := log.Close()
+		require.NoError(t, err)
+	}(log)
+
+	ctx := context.Background()
+	done := make(chan struct{})
+
+	go func() {
+		err := log.WaitForAppend(ctx)
+		assert.NoError(t, err)
+		close(done)
+	}()
+
+	// WaitForAppend should be blocking, not returning immediately
+	select {
+	case <-done:
+		t.Fatal("WaitForAppend returned before any record was appended")
+	case <-time.After(50 * time.Millisecond):
+		// expected: still blocking
+	}
+
+	// now append a record to unblock the waiter
+	_, err := log.Append(&api.Record{Value: []byte("wake up")})
+	require.NoError(t, err)
+
+	select {
+	case <-done:
+		// expected: WaitForAppend returned
+	case <-time.After(time.Second):
+		t.Fatal("WaitForAppend did not return after Append")
+	}
+}
+
+func testWaitForAppendContextCanceled(t *testing.T, log *Log) {
+	defer func(log *Log) {
+		err := log.Close()
+		require.NoError(t, err)
+	}(log)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+
+	go func() {
+		done <- log.WaitForAppend(ctx)
+	}()
+
+	// should be blocking
+	select {
+	case <-done:
+		t.Fatal("WaitForAppend returned before context was canceled")
+	case <-time.After(50 * time.Millisecond):
+		// expected
+	}
+
+	cancel()
+
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("WaitForAppend did not return after context cancel")
+	}
 }
 
 func testConcurrentWrites(t *testing.T, log *Log) {
