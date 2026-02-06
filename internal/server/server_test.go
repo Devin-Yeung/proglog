@@ -37,6 +37,37 @@ func TestLog(t *testing.T) {
 	}
 }
 
+// setupClient is a helper function to create a gRPC client connection with specified TLS credentials.
+// It returns a gRPC client connection and a LogClient for making RPC calls to the server.
+func setupClient(
+	t *testing.T,
+	certFile string,
+	keyFile string,
+	addr string,
+) (*grpc.ClientConn, api.LogClient) {
+	t.Helper()
+
+	tlsConfig, err := config.SetupTLSConfig(config.TLSConfig{
+		CertFile: certFile,
+		KeyFile:  keyFile,
+		CAFile:   config.CAFile,
+		Server:   false,
+	})
+	require.NoError(t, err)
+
+	// create TLS credentials for the client
+	creds := credentials.NewTLS(tlsConfig)
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(creds),
+	}
+	// dial the server with the TLS credentials
+	conn, err := grpc.NewClient(addr, opts...)
+	require.NoError(t, err)
+
+	client := api.NewLogClient(conn)
+	return conn, client
+}
+
 func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 	t.Helper()
 
@@ -44,30 +75,16 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	// setup TLS credentials for the client
-	clientTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
-		CertFile: config.ClientCertFile,
-		KeyFile:  config.ClientKeyFile,
-		CAFile:   config.CAFile,
-	})
-	require.NoError(t, err)
-
-	clientCreds := credentials.NewTLS(clientTLSConfig)
-
-	// setup gRPC client connection
-	clientOptions := []grpc.DialOption{
-		grpc.WithTransportCredentials(clientCreds),
-	}
-
-	conn, err := grpc.NewClient(
+	clientConn, client := setupClient(
+		t,
+		config.ClientCertFile,
+		config.ClientKeyFile,
 		listener.Addr().String(),
-		clientOptions...,
 	)
-	require.NoError(t, err)
 
 	// create an underlying log
 	cfg := log.NewConfig()
-	log, err := log.NewLog(
+	commitLog, err := log.NewLog(
 		t.TempDir(),
 		*cfg,
 	)
@@ -84,10 +101,8 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 
 	serverCreds := credentials.NewTLS(serverTLSConfig)
 	// create a new gRPC server and spin it up
-	server, err := NewGRPCServer(&Config{CommitLog: log}, grpc.Creds(serverCreds))
+	server, err := NewGRPCServer(&Config{CommitLog: commitLog}, grpc.Creds(serverCreds))
 	require.NoError(t, err)
-
-	client = api.NewLogClient(conn)
 
 	go func() {
 		server.Serve(listener)
@@ -95,13 +110,13 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 
 	tearDown = func() {
 		// close the client connection
-		conn.Close()
+		clientConn.Close()
 		// close the server
 		server.Stop()
 		// close the listener
 		listener.Close()
 		// close the log
-		log.Close()
+		commitLog.Close()
 	}
 
 	return
