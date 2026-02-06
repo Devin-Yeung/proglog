@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
 )
 
 func TestLog(t *testing.T) {
@@ -34,6 +36,22 @@ func TestLog(t *testing.T) {
 			rootClient, _, tearDown := setupTestClients(t)
 			defer tearDown()
 			tc.fn(t, rootClient)
+		})
+	}
+}
+
+func TestLogAuth(t *testing.T) {
+	type testCase struct {
+		name string
+		fn   func(t *testing.T, rootClient api.LogClient, nobodyClient api.LogClient)
+	}
+	for _, tc := range []testCase{
+		{name: "unauthorized client can't consume/produce", fn: testUnauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rootClient, nobodyClient, tearDown := setupTestClients(t)
+			defer tearDown()
+			tc.fn(t, rootClient, nobodyClient)
 		})
 	}
 }
@@ -271,4 +289,28 @@ func testProduceStream(t *testing.T, client api.LogClient) {
 	})
 
 	require.NoError(t, g.Wait())
+}
+
+func testUnauthorized(t *testing.T, rootClient api.LogClient, nobodyClient api.LogClient) {
+	ctx := context.Background()
+
+	produceResp, err := rootClient.Produce(
+		ctx,
+		&api.ProduceRequest{Record: &api.Record{Value: []byte("hello world")}},
+	)
+	require.NoError(t, err)
+
+	_, err = nobodyClient.Produce(
+		ctx,
+		&api.ProduceRequest{Record: &api.Record{Value: []byte("hello world")}},
+	)
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	_, err = nobodyClient.Consume(
+		ctx,
+		&api.ConsumeRequest{Offset: produceResp.Offset},
+	)
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
