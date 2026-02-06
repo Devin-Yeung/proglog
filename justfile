@@ -24,14 +24,6 @@ gencert:
     test/server-csr.json \
     | cfssljson -bare server
 
-  cfssl gencert \
-    -ca=ca.pem \
-    -ca-key=ca-key.pem \
-    -config=test/ca-config.json \
-    -profile=client \
-    test/client-csr.json \
-    | cfssljson -bare client
-
   # root client is the superuser
   cfssl gencert \
     -ca=ca.pem \
@@ -42,7 +34,7 @@ gencert:
     test/client-csr.json \
     | cfssljson -bare root-client
 
-  # nobody-client is the un-privileged user
+  # nobody client is the un-privileged user
   cfssl gencert \
     -ca=ca.pem \
     -ca-key=ca-key.pem \
