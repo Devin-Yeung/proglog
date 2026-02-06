@@ -30,9 +30,9 @@ func TestLog(t *testing.T) {
 		{name: "produce stream", fn: testProduceStream},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			client, tearDown := setupTestServer(t)
+			rootClient, _, tearDown := setupTestClients(t)
 			defer tearDown()
-			tc.fn(t, client)
+			tc.fn(t, rootClient)
 		})
 	}
 }
@@ -68,31 +68,8 @@ func setupClient(
 	return conn, client
 }
 
-func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
-	t.Helper()
-
-	listener, server, serverTearDown := setupServer(t)
-
-	clientConn, client := setupClient(
-		t,
-		config.ClientCertFile,
-		config.ClientKeyFile,
-		listener.Addr().String(),
-	)
-
-	go func() {
-		server.Serve(listener)
-	}()
-
-	tearDown = func() {
-		// close the client connection
-		clientConn.Close()
-		serverTearDown()
-	}
-
-	return
-}
-
+// setupServer is a helper function to create and start a gRPC server with TLS credentials.
+// It returns a net.Listener for the server, the gRPC server instance, and a tearDown function to clean up resources after the test.
 func setupServer(t *testing.T) (listener net.Listener, server *grpc.Server, tearDown func()) {
 	t.Helper()
 
@@ -132,6 +109,39 @@ func setupServer(t *testing.T) (listener net.Listener, server *grpc.Server, tear
 	}
 
 	return listener, server, tearDown
+}
+
+func setupTestClients(t *testing.T) (rootClient api.LogClient, nobodyClient api.LogClient, tearDown func()) {
+	t.Helper()
+
+	listener, server, serverTearDown := setupServer(t)
+
+	go func() {
+		server.Serve(listener)
+	}()
+
+	rootClientConn, rootClient := setupClient(
+		t,
+		config.RootCertFile,
+		config.RootKeyFile,
+		listener.Addr().String(),
+	)
+
+	nobodyClientConn, nobodyClient := setupClient(
+		t,
+		config.NobodyCertFile,
+		config.NobodyKeyFile,
+		listener.Addr().String(),
+	)
+
+	tearDown = func() {
+		// close the client connection
+		rootClientConn.Close()
+		nobodyClientConn.Close()
+		serverTearDown()
+	}
+
+	return
 }
 
 func testProduceConsume(t *testing.T, client api.LogClient) {
