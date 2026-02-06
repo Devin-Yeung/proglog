@@ -71,9 +71,7 @@ func setupClient(
 func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 	t.Helper()
 
-	// setup a tcp listener on a random port
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+	listener, server, serverTearDown := setupServer(t)
 
 	clientConn, client := setupClient(
 		t,
@@ -81,6 +79,26 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 		config.ClientKeyFile,
 		listener.Addr().String(),
 	)
+
+	go func() {
+		server.Serve(listener)
+	}()
+
+	tearDown = func() {
+		// close the client connection
+		clientConn.Close()
+		serverTearDown()
+	}
+
+	return
+}
+
+func setupServer(t *testing.T) (listener net.Listener, server *grpc.Server, tearDown func()) {
+	t.Helper()
+
+	// setup a tcp listener on a random port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 
 	// create an underlying log
 	cfg := log.NewConfig()
@@ -101,16 +119,10 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 
 	serverCreds := credentials.NewTLS(serverTLSConfig)
 	// create a new gRPC server and spin it up
-	server, err := NewGRPCServer(&Config{CommitLog: commitLog}, grpc.Creds(serverCreds))
+	server, err = NewGRPCServer(&Config{CommitLog: commitLog}, grpc.Creds(serverCreds))
 	require.NoError(t, err)
 
-	go func() {
-		server.Serve(listener)
-	}()
-
 	tearDown = func() {
-		// close the client connection
-		clientConn.Close()
 		// close the server
 		server.Stop()
 		// close the listener
@@ -119,7 +131,7 @@ func setupTestServer(t *testing.T) (client api.LogClient, tearDown func()) {
 		commitLog.Close()
 	}
 
-	return
+	return listener, server, tearDown
 }
 
 func testProduceConsume(t *testing.T, client api.LogClient) {
