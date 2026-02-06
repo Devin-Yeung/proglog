@@ -64,7 +64,12 @@ func newGRPCLogServer(config *Config) (*grpcLogServer, error) {
 type subjectCtxKey struct{}
 
 func subject(ctx context.Context) string {
-	return ctx.Value(subjectCtxKey{}).(string)
+	val := ctx.Value(subjectCtxKey{})
+	s, ok := val.(string)
+	if !ok {
+		return ""
+	}
+	return s
 }
 
 // authenticate is a gRPC interceptor that extracts the subject from the peer's TLS certificate and adds it to the context.
