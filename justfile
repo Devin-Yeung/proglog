@@ -34,7 +34,7 @@ gencert:
     -ca-key=ca-key.pem \
     -config=test/ca-config.json \
     -profile=client \
-    -cn=root-client \
+    -cn=root \
     test/client-csr.json \
     | cfssljson -bare root-client
 
@@ -44,7 +44,7 @@ gencert:
     -ca-key=ca-key.pem \
     -config=test/ca-config.json \
     -profile=client \
-    -cn=nobody-client \
+    -cn=nobody \
     test/client-csr.json \
     | cfssljson -bare nobody-client
 
