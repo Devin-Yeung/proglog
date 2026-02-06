@@ -1,7 +1,7 @@
 test:
   gotestsum --format=testname
 
-setup: gencert
+setup: gencert gen-acl-rules
 
 compile:
   protoc api/v1/*.proto \
@@ -10,6 +10,10 @@ compile:
     --go_opt=paths=source_relative \
     --go-grpc_opt=paths=source_relative \
     --proto_path=.
+
+gen-acl-rules:
+    cp test/model.conf ${PROGLOG_CONFIG_DIR}
+    cp test/policy.csv ${PROGLOG_CONFIG_DIR}
 
 gencert:
   cfssl gencert \
