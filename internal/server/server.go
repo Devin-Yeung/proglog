@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
@@ -47,10 +48,17 @@ type grpcLogServer struct {
 }
 
 func newGRPCLogServer(config *Config) (*grpcLogServer, error) {
-	srv := &grpcLogServer{
-		Config: config,
+	if config == nil {
+		return nil, fmt.Errorf("missing server config")
 	}
-	return srv, nil
+
+	if config.CommitLog == nil || config.Authorizer == nil {
+		return nil, fmt.Errorf("incomplete server config")
+	}
+
+	return &grpcLogServer{
+		Config: config,
+	}, nil
 }
 
 type subjectCtxKey struct{}
