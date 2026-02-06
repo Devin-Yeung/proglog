@@ -9,6 +9,7 @@ import (
 	"time"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
+	"github.com/Devin-Yeung/proglog/internal/auth"
 	"github.com/Devin-Yeung/proglog/internal/config"
 	"github.com/Devin-Yeung/proglog/internal/log"
 	"github.com/stretchr/testify/assert"
@@ -85,6 +86,13 @@ func setupServer(t *testing.T) (listener net.Listener, server *grpc.Server, tear
 	)
 	require.NoError(t, err)
 
+	// create an authorizer
+	authorizer, err := auth.NewAuthorizer(
+		config.ACLModelFile,
+		config.ACLPolicyFile,
+	)
+	require.NoError(t, err)
+
 	// setup TLS credentials for the server
 	serverTLSConfig, err := config.SetupTLSConfig(config.TLSConfig{
 		CertFile: config.ServerCertFile,
@@ -96,7 +104,13 @@ func setupServer(t *testing.T) (listener net.Listener, server *grpc.Server, tear
 
 	serverCreds := credentials.NewTLS(serverTLSConfig)
 	// create a new gRPC server and spin it up
-	server, err = NewGRPCServer(&Config{CommitLog: commitLog}, grpc.Creds(serverCreds))
+	server, err = NewGRPCServer(
+		&Config{
+			CommitLog:  commitLog,
+			Authorizer: authorizer,
+		},
+		grpc.Creds(serverCreds),
+	)
 	require.NoError(t, err)
 
 	tearDown = func() {

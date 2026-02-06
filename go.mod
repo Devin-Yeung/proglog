@@ -6,6 +6,7 @@ require (
 	github.com/casbin/casbin/v3 v3.10.0
 	github.com/docker/go-units v0.5.0
 	github.com/gorilla/mux v1.8.1
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/stretchr/testify v1.11.1
 	github.com/tysonmote/gommap v0.0.3
 	golang.org/x/sync v0.18.0
