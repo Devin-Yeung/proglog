@@ -26,6 +26,8 @@ type CommitLog interface {
 	Append(record *api.Record) (uint64, error)
 	// Read retrieves a record from the log at the specified offset.
 	Read(offset uint64) (*api.Record, error)
+	// WaitForAppend blocks until a new record is appended or the context is canceled.
+	WaitForAppend(ctx context.Context) error
 }
 
 type Authorizer interface {
@@ -131,33 +133,34 @@ func (s *grpcLogServer) ConsumeStream(req *api.ConsumeRequest, stream api.Log_Co
 
 	for {
 		select {
-
 		case <-stream.Context().Done():
 			return nil
-
 		default:
-			record, err := s.Consume(
-				stream.Context(),
-				&api.ConsumeRequest{Offset: cursor},
-			)
-
-			switch err.(type) {
-			case nil:
-				// ok
-			case api.ErrOffsetOutOfRange:
-				// wait until new records are appended
-				continue
-			default:
-				return err
-			}
-
-			if err := stream.Send(record); err != nil {
-				return err
-			}
-			cursor += 1
 		}
-	}
 
+		record, err := s.Consume(
+			stream.Context(),
+			&api.ConsumeRequest{Offset: cursor},
+		)
+
+		switch err.(type) {
+		case nil:
+			// ok
+		case api.ErrOffsetOutOfRange:
+			// block until the log notifies us of a new append, or the stream is canceled
+			if err := s.CommitLog.WaitForAppend(stream.Context()); err != nil {
+				return nil // context canceled
+			}
+			continue
+		default:
+			return err
+		}
+
+		if err := stream.Send(record); err != nil {
+			return err
+		}
+		cursor += 1
+	}
 }
 
 func (s *grpcLogServer) ProduceStream(stream api.Log_ProduceStreamServer) error {
