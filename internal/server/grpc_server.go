@@ -1,21 +1,33 @@
 package server
 
 import (
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	"github.com/Devin-Yeung/proglog/internal/server/middleware"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
 )
 
 func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, error) {
+	logger := zap.L().Named("server")
+
+	loggerOpts := []logging.Option{
+		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
+		// Add any other option (check functions starting with logging.With).
+	}
+
 	opts = append(opts,
 		// unary interceptor
 		grpc.ChainUnaryInterceptor(
-			grpc_auth.UnaryServerInterceptor(authenticate),
+			logging.UnaryServerInterceptor(middleware.ZapLogger(logger), loggerOpts...),
+			auth.UnaryServerInterceptor(middleware.Authenticate),
 		),
 		// streaming interceptors
 		grpc.ChainStreamInterceptor(
-			grpc_auth.StreamServerInterceptor(authenticate),
+			logging.StreamServerInterceptor(middleware.ZapLogger(logger), loggerOpts...),
+			auth.StreamServerInterceptor(middleware.Authenticate),
 		),
 	)
 

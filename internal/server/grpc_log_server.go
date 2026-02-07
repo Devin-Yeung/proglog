@@ -5,6 +5,7 @@ import (
 	"io"
 
 	api "github.com/Devin-Yeung/proglog/api/v1"
+	"github.com/Devin-Yeung/proglog/internal/server/middleware"
 )
 
 type grpcLogServer struct {
@@ -14,7 +15,7 @@ type grpcLogServer struct {
 
 func (s *grpcLogServer) Produce(ctx context.Context, req *api.ProduceRequest) (*api.ProduceResponse, error) {
 	if err := s.Authorizer.Authorize(
-		subject(ctx),
+		middleware.Subject(ctx),
 		objectWildcard,
 		produceAction,
 	); err != nil {
@@ -30,7 +31,7 @@ func (s *grpcLogServer) Produce(ctx context.Context, req *api.ProduceRequest) (*
 
 func (s *grpcLogServer) Consume(ctx context.Context, req *api.ConsumeRequest) (*api.ConsumeResponse, error) {
 	if err := s.Authorizer.Authorize(
-		subject(ctx),
+		middleware.Subject(ctx),
 		objectWildcard,
 		consumeAction,
 	); err != nil {

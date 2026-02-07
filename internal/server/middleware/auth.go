@@ -1,4 +1,4 @@
-package server
+package middleware
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 type subjectCtxKey struct{}
 
-func subject(ctx context.Context) string {
+func Subject(ctx context.Context) string {
 	val := ctx.Value(subjectCtxKey{})
 	s, ok := val.(string)
 	if !ok {
@@ -20,8 +20,8 @@ func subject(ctx context.Context) string {
 	return s
 }
 
-// authenticate is a gRPC interceptor that extracts the subject from the peer's TLS certificate and adds it to the context.
-func authenticate(ctx context.Context) (context.Context, error) {
+// Authenticate is a gRPC interceptor that extracts the subject from the peer's TLS certificate and adds it to the context.
+func Authenticate(ctx context.Context) (context.Context, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
 		return ctx, status.New(codes.Unknown, "could not find peer info").Err()
