@@ -11,11 +11,14 @@ import (
 )
 
 func NewGRPCServer(config *Config, opts ...grpc.ServerOption) (*grpc.Server, error) {
-	logger := zap.L().Named("server")
+	// TODO: make the logger configurable
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
 
 	loggerOpts := []logging.Option{
 		logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
-		// Add any other option (check functions starting with logging.With).
 	}
 
 	opts = append(opts,

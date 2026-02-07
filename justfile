@@ -1,3 +1,12 @@
+dev-up:
+    go run ./cmd/server \
+      --cert-file=${PROGLOG_CONFIG_DIR}/server.pem \
+      --key-file=${PROGLOG_CONFIG_DIR}/server-key.pem \
+      --ca-file=${PROGLOG_CONFIG_DIR}/ca.pem \
+      --acl-model-file=${PROGLOG_CONFIG_DIR}/model.conf \
+      --acl-policy-file=${PROGLOG_CONFIG_DIR}/policy.csv \
+      --data-dir="/tmp/proglog"
+
 test:
   gotestsum --format=testname
 
