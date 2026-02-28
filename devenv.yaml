@@ -2,7 +2,11 @@
 inputs:
   nixpkgs:
     url: github:cachix/devenv-nixpkgs/rolling
-
+  gomod2nix:
+    url: github:nix-community/gomod2nix
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
 # If you're using non-OSS software, you can set allowUnfree to true.
 # allowUnfree: true
 

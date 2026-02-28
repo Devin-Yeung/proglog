@@ -9,8 +9,13 @@
 {
   env.PROGLOG_CONFIG_DIR = "${config.devenv.state}/proglog/config";
 
+  overlays = [
+    inputs.gomod2nix.overlays.default
+  ];
+
   # https://devenv.sh/packages/
   packages = with pkgs; [
+    gomod2nix
     protobuf
     protoc-gen-go
     protoc-gen-go-grpc
