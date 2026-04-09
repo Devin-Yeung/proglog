@@ -6,6 +6,9 @@
   ...
 }:
 
+let
+  octocov = pkgs.callPackage ./nix/pkgs/octocov.nix { };
+in
 {
   env.PROGLOG_CONFIG_DIR = "${config.devenv.state}/proglog/config";
 
@@ -22,6 +25,7 @@
     gotestsum
     cfssl
     just
+    octocov
   ];
 
   # https://devenv.sh/languages/
